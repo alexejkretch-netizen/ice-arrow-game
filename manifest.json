@@ -1,0 +1,16 @@
+{
+  "name": "Ледяная Стрела",
+  "short_name": "Стрела",
+  "description": "Захватывающая игра, где ты управляешь ледяной стрелой, падающей в бездну.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#1a0b2e",
+  "theme_color": "#1a0b2e",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

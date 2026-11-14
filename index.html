@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ледяная Стрела</title>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #0a0514; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; touch-action: none; display: flex; justify-content: center; }
+        #game-container { position: relative; width: 100%; max-width: 600px; height: 100%; background-color: #1a0b2e; box-shadow: 0 0 50px rgba(0, 255, 255, 0.2); overflow: hidden; }
+        #bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg.jpg'); background-size: cover; background-position: center; z-index: 1; }
+        #game-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; overflow: hidden; }
+        #arrow { position: absolute; width: 75px; height: 112px; background-image: url('arrow.png'); background-size: contain; background-repeat: no-repeat; background-position: center; transform: rotate(0deg); z-index: 5; transition: filter 0.3s; }
+        .skin-default { filter: drop-shadow(0 0 15px rgba(0, 255, 255, 0.8)); }
+        .skin-fire { filter: drop-shadow(0 0 20px rgba(255, 0, 0, 0.9)) hue-rotate(150deg) saturate(3); }
+        .skin-plasma { filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.9)) hue-rotate(240deg) saturate(2); }
+        .skin-gold { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.9)) sepia(1) saturate(5) hue-rotate(10deg); }
+        .platform { position: absolute; height: 20px; background: linear-gradient(90deg, #2b5876, #4e4376); border-top: 2px solid #00ffff; border-bottom: 2px solid #00ffff; box-shadow: 0 0 15px #00ffff; z-index: 3; border-radius: 10px; }
+        #score { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 50px; font-weight: bold; z-index: 10; text-shadow: 0 0 20px #00ffff; pointer-events: none; }
+        #crystals-hud { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.6); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(168, 85, 247, 0.5); color: #a855f7; font-size: 24px; font-weight: bold; z-index: 10; text-shadow: 0 0 10px #a855f7; display: none; align-items: center; gap: 5px; pointer-events: none; }
+        #boom { position: absolute; width: 200px; height: 200px; background-image: url('boom.png'); background-size: contain; background-repeat: no-repeat; z-index: 8; display: none; pointer-events: none; filter: drop-shadow(0 0 20px rgba(255, 100, 0, 0.8)); }
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 5, 20, 0.85); backdrop-filter: blur(5px); z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .menu-title { color: #00ffff; font-size: 45px; font-weight: 900; text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff; margin-bottom: 10px; text-align: center; letter-spacing: 2px; }
+        .crystals-balance { color: #a855f7; font-size: 22px; font-weight: bold; margin-bottom: 20px; text-shadow: 0 0 10px #a855f7; }
+        .mode-buttons { display: flex; flex-direction: column; gap: 12px; width: 80%; max-width: 300px; }
+        .mode-btn { padding: 12px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; display: flex; justify-content: space-between; position: relative; }
+        .mode-btn:hover { transform: translateY(-2px) scale(1.02); filter: brightness(1.2); }
+        .mode-btn:active { transform: scale(0.95); }
+        .btn-easy { background: linear-gradient(90deg, #11998e, #38ef7d); color: #000; box-shadow: 0 0 15px #38ef7d; }
+        .btn-medium { background: linear-gradient(90deg, #f12711, #f5af19); color: #000; box-shadow: 0 0 15px #f5af19; }
+        .btn-hard { background: linear-gradient(90deg, #8E0E00, #1F1C18); color: #fff; box-shadow: 0 0 15px #8E0E00; }
+        .btn-secondary { margin-top: 15px; padding: 12px 20px; background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid #00ffff; border-radius: 30px; font-size: 16px; cursor: pointer; transition: all 0.3s; width: 80%; max-width: 300px; }
+        .btn-secondary:hover { background: rgba(0, 255, 255, 0.2); box-shadow: 0 0 15px #00ffff; }
+        .overlay-menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 5, 20, 0.95); z-index: 25; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .free-crystals-block { background: rgba(255, 255, 255, 0.1); border: 1px solid #f5af19; border-radius: 15px; padding: 15px; width: 80%; max-width: 350px; margin-bottom: 20px; text-align: center; }
+        .free-crystals-block h3 { color: #f5af19; margin: 0 0 10px 0; text-shadow: 0 0 10px #f5af19; }
+        .free-crystals-block button { width: 100%; padding: 12px; background: linear-gradient(90deg, #f12711, #f5af19); border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: #000; }
+        .free-crystals-block button:active { transform: scale(0.95); }
+        .free-crystals-block button:disabled { background: #555; color: #aaa; cursor: not-allowed; box-shadow: none; }
+        .skin-list { display: flex; flex-direction: column; gap: 10px; width: 80%; max-width: 350px; }
+        .skin-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.1); padding: 12px 15px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2); }
+        .skin-name { font-weight: bold; font-size: 16px; color: #fff; }
+        .skin-buy-btn { padding: 6px 12px; background: #a855f7; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .skin-buy-btn:hover { background: #9333ea; }
+        .skin-buy-btn:disabled { background: #555; cursor: not-allowed; }
+        .quest-list { display: flex; flex-direction: column; gap: 10px; width: 85%; max-width: 400px; }
+        .quest-item { background: rgba(255, 255, 255, 0.1); padding: 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2); display: flex; justify-content: space-between; align-items: center; }
+        .quest-info { display: flex; flex-direction: column; gap: 5px; }
+        .quest-title { font-weight: bold; font-size: 16px; color: #fff; }
+        .quest-progress { font-size: 14px; color: #aaa; }
+        .quest-reward { font-size: 14px; color: #a855f7; font-weight: bold; }
+        .quest-btn { padding: 8px 15px; background: #38ef7d; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s; min-width: 100px; }
+        .quest-btn:disabled { background: #555; color: #aaa; cursor: not-allowed; }
+        .quest-btn.claimed { background: transparent; border: 1px solid #555; color: #555; }
+        #reward-popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); background: rgba(0, 0, 0, 0.85); border: 2px solid #00ffff; padding: 20px 40px; border-radius: 15px; z-index: 110; display: flex; align-items: center; gap: 15px; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none; }
+        #reward-popup.show { transform: translate(-50%, -50%) scale(1); }
+        #reward-popup .icon { font-size: 40px; }
+        #reward-popup .text { color: #fff; font-size: 24px; font-weight: bold; }
+        #daily-reward { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .reward-box { background: linear-gradient(135deg, #1a0b2e, #2b114a); border: 2px solid #00ffff; border-radius: 20px; padding: 30px; text-align: center; width: 80%; max-width: 350px; box-shadow: 0 0 30px rgba(0, 255, 255, 0.3); }
+        .reward-box h2 { color: #fff; margin-top: 0; text-shadow: 0 0 10px #00ffff; }
+        .reward-box p { color: #ccc; font-size: 16px; margin-bottom: 20px; }
+        .reward-btn { display: block; width: 100%; padding: 15px; margin-bottom: 10px; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .reward-btn.claim { background: #38ef7d; color: #000; }
+        .reward-btn.x2 { background: linear-gradient(90deg, #f12711, #f5af19); color: #000; }
+        #revive-btn { display: none; margin-top: 15px; padding: 15px 40px; background: linear-gradient(90deg, #f12711, #f5af19); color: #000; border: none; border-radius: 50px; font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px #f5af19; animation: pulse 1.5s infinite; transition: transform 0.2s; }
+        #revive-btn:hover { transform: scale(1.05); }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .hint { color: #888; font-size: 14px; margin-top: 15px; text-align: center; }
+        #sound-toggle { position: absolute; top: 20px; right: 20px; background: rgba(255, 255, 255, 0.1); border: none; color: white; font-size: 24px; padding: 5px 10px; border-radius: 10px; cursor: pointer; z-index: 30; }
+        #reset-btn { position: absolute; bottom: 10px; left: 10px; background: rgba(255, 0, 0, 0.3); border: none; color: white; font-size: 12px; padding: 5px 10px; border-radius: 5px; cursor: pointer; z-index: 50; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="bg"></div>
+        
+        <div id="game-area">
+            <div id="score" style="display: none;">0 м</div>
+            <div id="crystals-hud">💎 <span id="game-crystals">0</span></div>
+            <div id="arrow" style="display: none;"></div>
+            <div id="boom"></div>
+        </div>
+
+        <button id="sound-toggle" onclick="toggleSound()">🔊</button>
+        <button id="reset-btn" onclick="resetProgress()">Сбросить прогресс</button>
+
+        <div id="menu">
+            <div class="menu-title">ЛЕДЯНАЯ СТРЕЛА</div>
+            <div class="crystals-balance">💎 Кристаллы: <span id="menu-crystals">0</span></div>
+            
+            <div class="mode-buttons">
+                <button class="mode-btn btn-easy" onclick="startGame('easy')">
+                    <span>ЛЕГКО</span>
+                    <span class="btn-record" id="rec-easy">0 м</span>
+                </button>
+                <button class="mode-btn btn-medium" onclick="startGame('medium')">
+                    <span>СРЕДНЕ</span>
+                    <span class="btn-record" id="rec-medium">0 м</span>
+                </button>
+                <button class="mode-btn btn-hard" onclick="startGame('hard')">
+                    <span>ХАРДКОР</span>
+                    <span class="btn-record" id="rec-hard">0 м</span>
+                </button>
+            </div>
+            
+            <button class="btn-secondary" onclick="openShop()">👕 МАГАЗИН СКИНОВ</button>
+            <button class="btn-secondary" onclick="openQuests()">📜 ЗАДАНИЯ</button>
+            <button class="btn-secondary" onclick="showLeaderboard()">🏆 РЕЙТИНГ ДРУЗЕЙ</button>
+            <button id="revive-btn" onclick="showRewardedAd()">📺 ПРОДОЛЖИТЬ ЗА РЕКЛАМУ</button>
+
+            <div class="hint">Управление: Стрелки / A-D / Мышь</div>
+        </div>
+
+        <div id="shop-menu" class="overlay-menu">
+            <div class="menu-title">МАГАЗИН</div>
+            <div class="crystals-balance">💎 Кристаллы: <span id="shop-crystals">0</span></div>
+            
+            <div class="free-crystals-block">
+                <h3>Не хватает на скин?</h3>
+                <button id="free-ads-btn" onclick="watchAdForCrystals()">📺 Смотреть рекламу (10 💎) [<span id="ads-left">5</span>/5]</button>
+            </div>
+
+            <div class="skin-list">
+                <div class="skin-item">
+                    <span class="skin-name">❄️ Ледяная</span>
+                    <button class="skin-buy-btn" onclick="buySkin('default')">ВЫБРАТЬ</button>
+                </div>
+                <div class="skin-item">
+                    <span class="skin-name">🔥 Огненная</span>
+                    <button class="skin-buy-btn" id="btn-skin-fire" onclick="buySkin('fire')">150 💎</button>
+                </div>
+                <div class="skin-item">
+                    <span class="skin-name">🌌 Плазменная</span>
+                    <button class="skin-buy-btn" id="btn-skin-plasma" onclick="buySkin('plasma')">400 💎</button>
+                </div>
+                <div class="skin-item">
+                    <span class="skin-name">🥇 Золотая</span>
+                    <button class="skin-buy-btn" id="btn-skin-gold" onclick="buySkin('gold')">1000 💎</button>
+                </div>
+            </div>
+            
+            <button class="btn-secondary" style="margin-top: 20px;" onclick="closeShop()">🔙 НАЗАД</button>
+        </div>
+
+        <div id="quests-menu" class="overlay-menu">
+            <div class="menu-title">ЗАДАНИЯ</div>
+            <div class="crystals-balance">💎 Кристаллы: <span id="quests-crystals">0</span></div>
+            <div class="quest-list" id="quest-list"></div>
+            <button class="btn-secondary" style="margin-top: 20px;" onclick="closeQuests()">🔙 НАЗАД</button>
+        </div>
+
+        <div id="daily-reward">
+            <div class="reward-box">
+                <h2>🎁 ЕЖЕДНЕВНЫЙ БОНУС</h2>
+                <p>Заходи каждый день и получай кристаллы на новые скины!</p>
+                <button class="reward-btn claim" onclick="claimDaily(1)">Забрать 15 💎</button>
+                <button class="reward-btn x2" onclick="claimDaily(2)">📺 Забрать 30 💎 (Реклама)</button>
+            </div>
+        </div>
+
+        <div id="reward-popup">
+            <div class="icon">💎</div>
+            <div class="text">+<span id="reward-amount">10</span></div>
+        </div>
+    </div>
+
+    <script>
+        let isSoundOn = true;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const bgMusic = new Audio('music.mp3');
+        bgMusic.loop = true;
+        bgMusic.volume = 0.3; 
+
+        function toggleSound() {
+            isSoundOn = !isSoundOn;
+            const btn = document.getElementById('sound-toggle');
+            if (isSoundOn) { btn.innerText = "🔊"; bgMusic.play().catch(e => console.log("Ждем клика")); } 
+            else { btn.innerText = "🔇"; bgMusic.pause(); }
+        }
+
+        function playExplosion() {
+            if (!isSoundOn) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const bufferSize = audioCtx.sampleRate * 0.5; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            noiseSource.connect(filter); filter.connect(gainNode); gainNode.connect(audioCtx.destination);
+            noiseSource.start();
+        }
+
+        let vkBridge = null;
+        if (window.vkBridge) { vkBridge = window.vkBridge; vkBridge.send('VKWebAppInit').catch(e => console.log("VK Init Error")); }
+
+        const gameArea = document.getElementById('game-area');
+        const arrow = document.getElementById('arrow');
+        const scoreEl = document.getElementById('score');
+        const boom = document.getElementById('boom');
+        const menu = document.getElementById('menu');
+        const shopMenu = document.getElementById('shop-menu');
+        const questsMenu = document.getElementById('quests-menu');
+        const reviveBtn = document.getElementById('revive-btn');
+        const crystalsHud = document.getElementById('crystals-hud');
+        const dailyRewardModal = document.getElementById('daily-reward');
+        const rewardPopup = document.getElementById('reward-popup');
+        
+        const gameWidth = document.getElementById('game-container').clientWidth;
+
+        let score = 0;
+        let gameOver = true;
+        let gameLoopId;
+        let currentMode = 'medium';
+        let isReviveAvailable = false;
+
+        let crystals = parseInt(localStorage.getItem('arrowCrystals') || 0);
+        let currentSkin = localStorage.getItem('arrowSkin') || 'default';
+        let ownedSkins = JSON.parse(localStorage.getItem('arrowOwnedSkins') || '["default"]');
+        let sessionCrystals = 0; 
+        let adsWatchedToday = parseInt(localStorage.getItem('arrowAdsWatched') || 0);
+        let lastAdDate = localStorage.getItem('arrowLastAdDate') || '';
+
+        // ЗАДАНИЯ
+        let questsData = JSON.parse(localStorage.getItem('arrowQuests') || 'null');
+        let lastQuestDate = localStorage.getItem('arrowLastQuestDate') || '';
+        let today = new Date().toDateString() + "v2"; 
+
+        if (lastAdDate !== today) {
+            adsWatchedToday = 0; localStorage.setItem('arrowAdsWatched', 0); localStorage.setItem('arrowLastAdDate', today);
+        }
+
+        if (!questsData || lastQuestDate !== today) {
+            questsData = [
+                { id: 'distance', title: 'Марафонец (800м)', target: 800, current: 0, reward: 10, claimed: false },
+                { id: 'crystals', title: 'Коллекционер (10 шт)', target: 10, current: 0, reward: 8, claimed: false },
+                { id: 'deaths', title: 'Испытатель (5 смертей)', target: 5, current: 0, reward: 5, claimed: false }
+            ];
+            localStorage.setItem('arrowQuests', JSON.stringify(questsData)); localStorage.setItem('arrowLastQuestDate', today);
+        }
+
+        function resetProgress() {
+            if(confirm("Вы уверены, что хотите сбросить весь прогресс?")) {
+                localStorage.clear(); location.reload();
+            }
+        }
+
+        function updateQuestsUI() {
+            let list = document.getElementById('quest-list'); list.innerHTML = '';
+            questsData.forEach((q, index) => {
+                let div = document.createElement('div'); div.className = 'quest-item';
+                let btnText = q.claimed ? "ПОЛУЧЕНО" : (q.current >= q.target ? "ЗАБРАТЬ" : "В ПРОЦЕССЕ");
+                let btnClass = q.claimed ? "quest-btn claimed" : "quest-btn";
+                let disabled = (q.claimed || q.current < q.target) ? "disabled" : "";
+                div.innerHTML = `
+                    <div class="quest-info"><div class="quest-title">${q.title}</div><div class="quest-progress">${Math.min(q.current, q.target)} / ${q.target}</div><div class="quest-reward">+${q.reward} 💎</div></div>
+                    <button class="${btnClass}" ${disabled} onclick="claimQuest(${index})">${btnText}</button>`;
+                list.appendChild(div);
+            });
+        }
+
+        function claimQuest(index) {
+            let q = questsData[index];
+            if (q.current >= q.target && !q.claimed) {
+                q.claimed = true; crystals += q.reward;
+                localStorage.setItem('arrowCrystals', crystals); localStorage.setItem('arrowQuests', JSON.stringify(questsData));
+                updateUI(); updateQuestsUI(); showRewardPopup(q.reward);
+            }
+        }
+
+        function updateQuestProgress(type, value) {
+            let updated = false;
+            questsData.forEach(q => {
+                if (q.id === type && !q.claimed) {
+                    if (q.id === 'distance') { if (value > q.current) { q.current = value; updated = true; } } 
+                    else { q.current += value; updated = true; }
+                }
+            });
+            if (updated) {
+                localStorage.setItem('arrowQuests', JSON.stringify(questsData));
+                if(questsMenu.style.display === 'flex') updateQuestsUI();
+            }
+        }
+
+        function showRewardPopup(amount) {
+            document.getElementById('reward-amount').innerText = amount;
+            rewardPopup.classList.add('show');
+            setTimeout(() => { rewardPopup.classList.remove('show'); }, 1500);
+        }
+
+        function checkDailyReward() {
+            let lastClaim = localStorage.getItem('arrowLastClaim');
+            let now = new Date().getTime();
+            if (!lastClaim || (now - lastClaim > 86400000)) { dailyRewardModal.style.display = 'flex'; }
+        }
+
+        function claimDaily(multiplier) {
+            if (multiplier === 2 && !vkBridge) { alert("Реклама работает только внутри ВКонтакте. (В локальной версии начисляем х2)"); finishClaim(2); return; }
+            if (multiplier === 2 && vkBridge) {
+                vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
+                    .then((data) => { if (data.result) finishClaim(2); })
+                    .catch((error) => { alert("Ошибка при загрузке рекламы. Начисляем обычный бонус."); finishClaim(1); });
+            } else { finishClaim(1); }
+        }
+
+        function finishClaim(multiplier) {
+            let reward = 15 * multiplier;
+            crystals += reward; localStorage.setItem('arrowCrystals', crystals); localStorage.setItem('arrowLastClaim', new Date().getTime());
+            dailyRewardModal.style.display = 'none'; updateUI(); showRewardPopup(reward);
+        }
+
+        function watchAdForCrystals() {
+            if (adsWatchedToday >= 5) { alert("На сегодня лимит исчерпан. Возвращайся завтра!"); return; }
+            if (!vkBridge) { alert("Реклама работает только внутри ВКонтакте. (В локальной версии начисляем 10 кристаллов)"); finishAdReward(); return; }
+            vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
+                .then((data) => { if (data.result) finishAdReward(); })
+                .catch((error) => { alert("Ошибка при загрузке рекламы."); });
+        }
+
+        function finishAdReward() {
+            crystals += 10; adsWatchedToday++;
+            localStorage.setItem('arrowCrystals', crystals); localStorage.setItem('arrowAdsWatched', adsWatchedToday);
+            updateUI(); showRewardPopup(10);
+        }
+
+        function applySkin() { arrow.className = 'skin-' + currentSkin; }
+
+        // НОВЫЕ, БОЛЕЕ СЛОЖНЫЕ НАСТРОЙКИ И УВЕЛИЧЕННАЯ СКОРОСТЬ
+        const modes = {
+            easy: { 
+                startSpeed: 3.0, speedIncrease: 0.15, speedPerMeters: 250, 
+                startGap: 180, minGap: 120, gapDecrease: 5, gapDecreaseMeters: 350 
+            },
+            medium: { 
+                startSpeed: 4.0, speedIncrease: 0.22, speedPerMeters: 200, 
+                startGap: 150, minGap: 90, gapDecrease: 6, gapDecreaseMeters: 250 
+            },
+            hard: { 
+                startSpeed: 5.0, speedIncrease: 0.30, speedPerMeters: 150, 
+                startGap: 130, minGap: 70, gapDecrease: 8, gapDecreaseMeters: 180 
+            }
+        };
+
+        let arrowSpeed = 4.0;
+        let gapWidth = 150;
+        const maxMoveSpeed = 12;      
+        const acceleration = 0.8;     
+        const friction = 0.85;        
+        const platformSpacing = 230;  // УМЕНЬШИЛИ РАССТОЯНИЕ
+
+        let arrowX = (gameWidth / 2) - 37.5;
+        let velocityX = 0; 
+        let arrowScreenY = window.innerHeight / 3; 
+        
+        let moveLeft = false;
+        let moveRight = false;
+        let isMouseDown = false;
+        let mouseTargetX = 0;
+
+        let worldOffsetY = 0;
+        let platforms = [];
+
+        // Переменные для дельта-времени
+        let lastTime = performance.now();
+
+        function updateUI() {
+            document.getElementById('menu-crystals').innerText = crystals;
+            document.getElementById('shop-crystals').innerText = crystals;
+            document.getElementById('quests-crystals').innerText = crystals;
+            document.getElementById('game-crystals').innerText = sessionCrystals;
+            
+            let adsBtn = document.getElementById('free-ads-btn');
+            if (adsWatchedToday >= 5) { adsBtn.disabled = true; adsBtn.innerText = "Лимит на сегодня (0/5)"; } 
+            else { adsBtn.disabled = false; adsBtn.innerHTML = `📺 Смотреть рекламу (10 💎) [<span id="ads-left">${5 - adsWatchedToday}</span>/5]`; }
+            
+            for(let m in modes) {
+                let rec = localStorage.getItem('arrowBest_' + m) || 0;
+                document.getElementById('rec-' + m).innerText = rec + " м";
+            }
+
+            let skins = { 'fire': 150, 'plasma': 400, 'gold': 1000 };
+            for(let s in skins) {
+                let btn = document.getElementById('btn-skin-' + s);
+                if (ownedSkins.includes(s)) {
+                    btn.innerText = "ВЫБРАТЬ"; btn.disabled = (currentSkin === s);
+                    if(currentSkin === s) btn.innerText = "АКТИВНО";
+                } else {
+                    btn.innerText = skins[s] + " 💎"; btn.disabled = crystals < skins[s];
+                }
+            }
+        }
+
+        function createPlatform(y) {
+            let maxGapX = gameWidth - gapWidth - 20;
+            let gapX = Math.random() * (maxGapX - 20) + 20; 
+            let elL = document.createElement('div'); elL.className = 'platform'; gameArea.appendChild(elL);
+            let elR = document.createElement('div'); elR.className = 'platform'; gameArea.appendChild(elR);
+            platforms.push({ y: y, gapX: gapX, elL: elL, elR: elR });
+        }
+
+        function resetPlatforms() {
+            document.querySelectorAll('.platform').forEach(el => el.remove());
+            platforms = [];
+            for (let i = 0; i < 6; i++) { createPlatform(window.innerHeight + 200 + (i * platformSpacing)); }
+            renderPlatforms();
+        }
+
+        function renderPlatforms() {
+            platforms.forEach(p => {
+                let screenY = p.y - worldOffsetY;
+                p.elL.style.top = screenY + 'px'; p.elL.style.left = '0'; p.elL.style.width = p.gapX + 'px';
+                p.elR.style.top = screenY + 'px'; p.elR.style.left = (p.gapX + gapWidth) + 'px'; p.elR.style.width = (gameWidth - (p.gapX + gapWidth)) + 'px';
+            });
+        }
+
+        function update(currentTime) {
+            if (gameOver) return;
+            
+            // Вычисляем дельта-время (сколько прошло с прошлого кадра, нормализовано под 60 FPS)
+            let dt = (currentTime - lastTime) / 16.666;
+            lastTime = currentTime;
+            
+            // Защита от лагов (если вкладка сворачивалась, dt может быть огромным)
+            if (dt > 3) dt = 3;
+            if (isNaN(dt)) dt = 1;
+
+            // Управление
+            if (moveLeft) velocityX -= acceleration * dt;
+            else if (moveRight) velocityX += acceleration * dt;
+            else if (isMouseDown) {
+                let containerRect = document.getElementById('game-container').getBoundingClientRect();
+                let relativeMouseX = mouseTargetX - containerRect.left;
+                let diff = relativeMouseX - (arrowX + 37.5);
+                velocityX = diff * 0.3; 
+            } else velocityX *= Math.pow(friction, dt);
+
+            if (velocityX > maxMoveSpeed) velocityX = maxMoveSpeed;
+            if (velocityX < -maxMoveSpeed) velocityX = -maxMoveSpeed;
+
+            arrowX += velocityX * dt;
+            if (arrowX < 0) { arrowX = 0; velocityX = 0; }
+            if (arrowX > gameWidth - 75) { arrowX = gameWidth - 75; velocityX = 0; }
+
+            arrow.style.top = arrowScreenY + 'px'; arrow.style.left = arrowX + 'px';
+
+            // Запоминаем прошлую позицию для честных коллизий
+            let prevWorldOffsetY = worldOffsetY;
+            worldOffsetY += arrowSpeed * dt;
+            
+            let newScore = Math.floor(worldOffsetY / 100);
+            if (newScore > score) {
+                score = newScore;
+                scoreEl.innerText = score + " м";
+                if (score % 50 === 0 && currentMode !== 'easy') {
+                    sessionCrystals++; document.getElementById('game-crystals').innerText = sessionCrystals;
+                }
+                let m = modes[currentMode];
+                let speedBonus = Math.floor(score / m.speedPerMeters) * m.speedIncrease;
+                arrowSpeed = m.startSpeed + speedBonus;
+                let gapReduction = Math.floor(score / m.gapDecreaseMeters) * m.gapDecrease;
+                gapWidth = Math.max(m.minGap, m.startGap - gapReduction);
+            }
+
+            // Проверка коллизий (учитываем пройденный путь)
+            for (let i = 0; i < platforms.length; i++) {
+                let p = platforms[i]; 
+                let prevScreenY = p.y - prevWorldOffsetY;
+                let currentScreenY = p.y - worldOffsetY;
+                
+                let hitZoneTop = arrowScreenY + 90;
+                let hitZoneBottom = arrowScreenY + 115;
+
+                // Если платформа пересекла зону поражения за этот кадр
+                if (Math.max(prevScreenY, currentScreenY) >= hitZoneTop && Math.min(prevScreenY, currentScreenY) <= hitZoneBottom) {
+                    if (arrowX + 30 < p.gapX || arrowX + 45 > p.gapX + gapWidth) { die(); return; }
+                }
+            }
+
+            if (platforms[0] && platforms[0].y - worldOffsetY < -100) {
+                let removed = platforms.shift(); removed.elL.remove(); removed.elR.remove();
+                let lastY = platforms[platforms.length - 1].y;
+                createPlatform(lastY + platformSpacing);
+            }
+            renderPlatforms();
+            gameLoopId = requestAnimationFrame(update);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ф') moveLeft = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'в') moveRight = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ф') moveLeft = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'в') moveRight = false;
+        });
+        gameArea.addEventListener('mousedown', (e) => { if(!gameOver) { isMouseDown = true; mouseTargetX = e.clientX; } });
+        document.addEventListener('mouseup', () => { isMouseDown = false; });
+        document.addEventListener('mousemove', (e) => { if (isMouseDown && !gameOver) mouseTargetX = e.clientX; });
+        gameArea.addEventListener('touchstart', e => { if(!gameOver) { isMouseDown = true; mouseTargetX = e.touches[0].clientX; } });
+        gameArea.addEventListener('touchmove', e => { if (isMouseDown && !gameOver) mouseTargetX = e.touches[0].clientX; });
+        gameArea.addEventListener('touchend', () => { isMouseDown = false; });
+
+        function die() {
+            gameOver = true;
+            cancelAnimationFrame(gameLoopId);
+            playExplosion();
+
+            updateQuestProgress('deaths', 1);
+            if (sessionCrystals > 0) updateQuestProgress('crystals', sessionCrystals);
+            if (score > 0) updateQuestProgress('distance', score);
+
+            crystals += sessionCrystals; localStorage.setItem('arrowCrystals', crystals);
+
+            let bestKey = 'arrowBest_' + currentMode;
+            let currentBest = parseInt(localStorage.getItem(bestKey) || 0);
+            if (score > currentBest) localStorage.setItem(bestKey, score);
+            if (vkBridge) vkBridge.send('VKWebAppSetScore', { score: score }).catch(e => console.log("VK Score Error"));
+
+            let boomY = arrowScreenY + 50; 
+            boom.style.display = 'block'; boom.style.left = (arrowX - 60) + 'px'; boom.style.top = (boomY - 70) + 'px';
+            arrow.style.display = 'none';
+            
+            setTimeout(() => {
+                updateUI(); document.querySelector('.menu-title').innerText = "ИГРА ОКОНЧЕНА";
+                if (isReviveAvailable) reviveBtn.style.display = 'block';
+                menu.style.display = 'flex';
+            }, 1000);
+        }
+
+        function startGame(mode) {
+            currentMode = mode;
+            menu.style.display = 'none'; document.querySelector('.menu-title').innerText = "ЛЕДЯНАЯ СТРЕЛА"; 
+            reviveBtn.style.display = 'none';
+            if (mode === 'easy') { crystalsHud.style.display = 'none'; } else { crystalsHud.style.display = 'flex'; }
+            score = 0; sessionCrystals = 0; document.getElementById('game-crystals').innerText = sessionCrystals;
+            gameOver = false; isReviveAvailable = true; arrowX = (gameWidth / 2) - 37.5;
+            velocityX = 0; isMouseDown = false; worldOffsetY = 0;
+            
+            arrowSpeed = modes[mode].startSpeed; gapWidth = modes[mode].startGap;
+            scoreEl.style.display = 'block'; scoreEl.innerText = "0 м";
+            arrow.style.display = 'block'; boom.style.display = 'none'; applySkin();
+            arrow.style.left = arrowX + 'px'; arrow.style.top = arrowScreenY + 'px';
+            
+            if (isSoundOn) bgMusic.play().catch(e => console.log("Нет файла music.mp3"));
+            
+            resetPlatforms(); 
+            lastTime = performance.now(); // Сбрасываем таймер при старте
+            update(lastTime);
+        }
+
+        function openShop() { menu.style.display = 'none'; shopMenu.style.display = 'flex'; updateUI(); }
+        function closeShop() { shopMenu.style.display = 'none'; menu.style.display = 'flex'; updateUI(); }
+        function openQuests() { menu.style.display = 'none'; questsMenu.style.display = 'flex'; updateUI(); updateQuestsUI(); }
+        function closeQuests() { questsMenu.style.display = 'none'; menu.style.display = 'flex'; updateUI(); }
+
+        function buySkin(skin) {
+            let prices = { 'default': 0, 'fire': 150, 'plasma': 400, 'gold': 1000 };
+            if (ownedSkins.includes(skin)) { currentSkin = skin; } 
+            else {
+                if (crystals >= prices[skin]) {
+                    crystals -= prices[skin]; ownedSkins.push(skin); currentSkin = skin;
+                    localStorage.setItem('arrowCrystals', crystals); localStorage.setItem('arrowOwnedSkins', JSON.stringify(ownedSkins));
+                } else { alert("Недостаточно кристаллов! Играй больше или смотри рекламу."); return; }
+            }
+            localStorage.setItem('arrowSkin', currentSkin);
+            applySkin(); updateUI();
+        }
+
+        function showRewardedAd() {
+            if (!vkBridge) { alert("Реклама работает только внутри ВКонтакте. (Локально возрождаем для теста)"); revivePlayer(); return; }
+            vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
+                .then((data) => { if (data.result) revivePlayer(); })
+                .catch((error) => { alert("Ошибка при загрузке рекламы."); });
+        }
+
+        function revivePlayer() {
+            isReviveAvailable = false; reviveBtn.style.display = 'none'; menu.style.display = 'none'; gameOver = false;
+            boom.style.display = 'none'; arrow.style.display = 'block';
+            arrow.style.left = arrowX + 'px'; arrow.style.top = arrowScreenY + 'px';
+            lastTime = performance.now(); // Сбрасываем таймер
+            update(lastTime);
+        }
+
+        function showLeaderboard() {
+            if (!vkBridge) { alert("Рейтинг работает только внутри ВКонтакте."); return; }
+            vkBridge.send('VKWebShowLeaderBoardBox', { user_result: score }).catch(e => console.log("VK Leaderboard Error"));
+        }
+
+        window.addEventListener('resize', () => { arrowScreenY = window.innerHeight / 3; });
+        applySkin(); updateUI(); checkDailyReward();
+    </script>
+</body>
+</html>
