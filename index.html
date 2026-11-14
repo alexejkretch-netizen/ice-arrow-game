@@ -230,7 +230,6 @@
         let adsWatchedToday = parseInt(localStorage.getItem('arrowAdsWatched') || 0);
         let lastAdDate = localStorage.getItem('arrowLastAdDate') || '';
 
-        // ЗАДАНИЯ
         let questsData = JSON.parse(localStorage.getItem('arrowQuests') || 'null');
         let lastQuestDate = localStorage.getItem('arrowLastQuestDate') || '';
         let today = new Date().toDateString() + "v2"; 
@@ -303,12 +302,19 @@
             if (!lastClaim || (now - lastClaim > 86400000)) { dailyRewardModal.style.display = 'flex'; }
         }
 
+        // ОБНОВЛЕННЫЕ ФУНКЦИИ РЕКЛАМЫ (БЕЗ НАДОЕДЛИВЫХ ALERT)
         function claimDaily(multiplier) {
-            if (multiplier === 2 && !vkBridge) { alert("Реклама работает только внутри ВКонтакте. (В локальной версии начисляем х2)"); finishClaim(2); return; }
+            if (multiplier === 2 && !vkBridge) {
+                finishClaim(1); // В локальной версии просто даем базовую награду
+                return;
+            }
             if (multiplier === 2 && vkBridge) {
                 vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
                     .then((data) => { if (data.result) finishClaim(2); })
-                    .catch((error) => { alert("Ошибка при загрузке рекламы. Начисляем обычный бонус."); finishClaim(1); });
+                    .catch((error) => { 
+                        console.log("Ошибка рекламы, даем обычный бонус"); 
+                        finishClaim(1); 
+                    });
             } else { finishClaim(1); }
         }
 
@@ -320,10 +326,11 @@
 
         function watchAdForCrystals() {
             if (adsWatchedToday >= 5) { alert("На сегодня лимит исчерпан. Возвращайся завтра!"); return; }
-            if (!vkBridge) { alert("Реклама работает только внутри ВКонтакте. (В локальной версии начисляем 10 кристаллов)"); finishAdReward(); return; }
+            if (!vkBridge) { finishAdReward(); return; }
+            
             vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
                 .then((data) => { if (data.result) finishAdReward(); })
-                .catch((error) => { alert("Ошибка при загрузке рекламы."); });
+                .catch((error) => { console.log("Реклама недоступна", error); });
         }
 
         function finishAdReward() {
@@ -334,20 +341,10 @@
 
         function applySkin() { arrow.className = 'skin-' + currentSkin; }
 
-        // НОВЫЕ, БОЛЕЕ СЛОЖНЫЕ НАСТРОЙКИ И УВЕЛИЧЕННАЯ СКОРОСТЬ
         const modes = {
-            easy: { 
-                startSpeed: 3.0, speedIncrease: 0.15, speedPerMeters: 250, 
-                startGap: 180, minGap: 120, gapDecrease: 5, gapDecreaseMeters: 350 
-            },
-            medium: { 
-                startSpeed: 4.0, speedIncrease: 0.22, speedPerMeters: 200, 
-                startGap: 150, minGap: 90, gapDecrease: 6, gapDecreaseMeters: 250 
-            },
-            hard: { 
-                startSpeed: 5.0, speedIncrease: 0.30, speedPerMeters: 150, 
-                startGap: 130, minGap: 70, gapDecrease: 8, gapDecreaseMeters: 180 
-            }
+            easy: { startSpeed: 3.0, speedIncrease: 0.15, speedPerMeters: 250, startGap: 180, minGap: 120, gapDecrease: 5, gapDecreaseMeters: 350 },
+            medium: { startSpeed: 4.0, speedIncrease: 0.22, speedPerMeters: 200, startGap: 150, minGap: 90, gapDecrease: 6, gapDecreaseMeters: 250 },
+            hard: { startSpeed: 5.0, speedIncrease: 0.30, speedPerMeters: 150, startGap: 130, minGap: 70, gapDecrease: 8, gapDecreaseMeters: 180 }
         };
 
         let arrowSpeed = 4.0;
@@ -355,7 +352,7 @@
         const maxMoveSpeed = 12;      
         const acceleration = 0.8;     
         const friction = 0.85;        
-        const platformSpacing = 230;  // УМЕНЬШИЛИ РАССТОЯНИЕ
+        const platformSpacing = 230;  
 
         let arrowX = (gameWidth / 2) - 37.5;
         let velocityX = 0; 
@@ -368,8 +365,6 @@
 
         let worldOffsetY = 0;
         let platforms = [];
-
-        // Переменные для дельта-времени
         let lastTime = performance.now();
 
         function updateUI() {
@@ -425,15 +420,11 @@
         function update(currentTime) {
             if (gameOver) return;
             
-            // Вычисляем дельта-время (сколько прошло с прошлого кадра, нормализовано под 60 FPS)
             let dt = (currentTime - lastTime) / 16.666;
             lastTime = currentTime;
-            
-            // Защита от лагов (если вкладка сворачивалась, dt может быть огромным)
             if (dt > 3) dt = 3;
             if (isNaN(dt)) dt = 1;
 
-            // Управление
             if (moveLeft) velocityX -= acceleration * dt;
             else if (moveRight) velocityX += acceleration * dt;
             else if (isMouseDown) {
@@ -452,7 +443,6 @@
 
             arrow.style.top = arrowScreenY + 'px'; arrow.style.left = arrowX + 'px';
 
-            // Запоминаем прошлую позицию для честных коллизий
             let prevWorldOffsetY = worldOffsetY;
             worldOffsetY += arrowSpeed * dt;
             
@@ -470,7 +460,6 @@
                 gapWidth = Math.max(m.minGap, m.startGap - gapReduction);
             }
 
-            // Проверка коллизий (учитываем пройденный путь)
             for (let i = 0; i < platforms.length; i++) {
                 let p = platforms[i]; 
                 let prevScreenY = p.y - prevWorldOffsetY;
@@ -479,7 +468,6 @@
                 let hitZoneTop = arrowScreenY + 90;
                 let hitZoneBottom = arrowScreenY + 115;
 
-                // Если платформа пересекла зону поражения за этот кадр
                 if (Math.max(prevScreenY, currentScreenY) >= hitZoneTop && Math.min(prevScreenY, currentScreenY) <= hitZoneBottom) {
                     if (arrowX + 30 < p.gapX || arrowX + 45 > p.gapX + gapWidth) { die(); return; }
                 }
@@ -544,16 +532,13 @@
             score = 0; sessionCrystals = 0; document.getElementById('game-crystals').innerText = sessionCrystals;
             gameOver = false; isReviveAvailable = true; arrowX = (gameWidth / 2) - 37.5;
             velocityX = 0; isMouseDown = false; worldOffsetY = 0;
-            
             arrowSpeed = modes[mode].startSpeed; gapWidth = modes[mode].startGap;
             scoreEl.style.display = 'block'; scoreEl.innerText = "0 м";
             arrow.style.display = 'block'; boom.style.display = 'none'; applySkin();
             arrow.style.left = arrowX + 'px'; arrow.style.top = arrowScreenY + 'px';
-            
             if (isSoundOn) bgMusic.play().catch(e => console.log("Нет файла music.mp3"));
-            
             resetPlatforms(); 
-            lastTime = performance.now(); // Сбрасываем таймер при старте
+            lastTime = performance.now(); 
             update(lastTime);
         }
 
@@ -575,24 +560,37 @@
             applySkin(); updateUI();
         }
 
+        // ОБНОВЛЕНА: Убрали страшный alert при закрытии рекламы
         function showRewardedAd() {
-            if (!vkBridge) { alert("Реклама работает только внутри ВКонтакте. (Локально возрождаем для теста)"); revivePlayer(); return; }
+            if (!vkBridge) { 
+                alert("Реклама работает только внутри ВКонтакте. (Локально возрождаем для теста)"); 
+                revivePlayer(); return; 
+            }
             vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
-                .then((data) => { if (data.result) revivePlayer(); })
-                .catch((error) => { alert("Ошибка при загрузке рекламы."); });
+                .then((data) => { 
+                    if (data.result) {
+                        revivePlayer(); 
+                    } else {
+                        console.log("Игрок закрыл рекламу до конца");
+                    }
+                })
+                .catch((error) => { 
+                    console.log("Ошибка показа рекламы", error); 
+                    // Никаких alert, чтобы не бесить игрока
+                });
         }
 
         function revivePlayer() {
             isReviveAvailable = false; reviveBtn.style.display = 'none'; menu.style.display = 'none'; gameOver = false;
             boom.style.display = 'none'; arrow.style.display = 'block';
             arrow.style.left = arrowX + 'px'; arrow.style.top = arrowScreenY + 'px';
-            lastTime = performance.now(); // Сбрасываем таймер
+            lastTime = performance.now(); 
             update(lastTime);
         }
 
         function showLeaderboard() {
             if (!vkBridge) { alert("Рейтинг работает только внутри ВКонтакте."); return; }
-            vkBridge.send('VKWebShowLeaderBoardBox', { user_result: score }).catch(e => console.log("VK Leaderboard Error"));
+            vkBridge.send('VKWebAppShowLeaderBoardBox', { user_result: score }).catch(e => console.log("VK Leaderboard Error"));
         }
 
         window.addEventListener('resize', () => { arrowScreenY = window.innerHeight / 3; });
