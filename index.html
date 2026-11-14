@@ -219,7 +219,9 @@
 
         let score = 0;
         let gameOver = true;
+        let isInvincible = false; // Флаг неуязвимости
         let gameLoopId;
+        let dieTimeout; // Запоминаем таймер, чтобы отменять его
         let currentMode = 'medium';
         let isReviveAvailable = false;
 
@@ -302,19 +304,12 @@
             if (!lastClaim || (now - lastClaim > 86400000)) { dailyRewardModal.style.display = 'flex'; }
         }
 
-        // ОБНОВЛЕННЫЕ ФУНКЦИИ РЕКЛАМЫ (БЕЗ НАДОЕДЛИВЫХ ALERT)
         function claimDaily(multiplier) {
-            if (multiplier === 2 && !vkBridge) {
-                finishClaim(1); // В локальной версии просто даем базовую награду
-                return;
-            }
+            if (multiplier === 2 && !vkBridge) { finishClaim(1); return; }
             if (multiplier === 2 && vkBridge) {
                 vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
                     .then((data) => { if (data.result) finishClaim(2); })
-                    .catch((error) => { 
-                        console.log("Ошибка рекламы, даем обычный бонус"); 
-                        finishClaim(1); 
-                    });
+                    .catch((error) => { finishClaim(1); });
             } else { finishClaim(1); }
         }
 
@@ -460,16 +455,19 @@
                 gapWidth = Math.max(m.minGap, m.startGap - gapReduction);
             }
 
-            for (let i = 0; i < platforms.length; i++) {
-                let p = platforms[i]; 
-                let prevScreenY = p.y - prevWorldOffsetY;
-                let currentScreenY = p.y - worldOffsetY;
-                
-                let hitZoneTop = arrowScreenY + 90;
-                let hitZoneBottom = arrowScreenY + 115;
+            // Если стрела неуязвима, мы пропускаем проверку столкновений
+            if (!isInvincible) {
+                for (let i = 0; i < platforms.length; i++) {
+                    let p = platforms[i]; 
+                    let prevScreenY = p.y - prevWorldOffsetY;
+                    let currentScreenY = p.y - worldOffsetY;
+                    
+                    let hitZoneTop = arrowScreenY + 90;
+                    let hitZoneBottom = arrowScreenY + 115;
 
-                if (Math.max(prevScreenY, currentScreenY) >= hitZoneTop && Math.min(prevScreenY, currentScreenY) <= hitZoneBottom) {
-                    if (arrowX + 30 < p.gapX || arrowX + 45 > p.gapX + gapWidth) { die(); return; }
+                    if (Math.max(prevScreenY, currentScreenY) >= hitZoneTop && Math.min(prevScreenY, currentScreenY) <= hitZoneBottom) {
+                        if (arrowX + 30 < p.gapX || arrowX + 45 > p.gapX + gapWidth) { die(); return; }
+                    }
                 }
             }
 
@@ -517,10 +515,16 @@
             boom.style.display = 'block'; boom.style.left = (arrowX - 60) + 'px'; boom.style.top = (boomY - 70) + 'px';
             arrow.style.display = 'none';
             
-            setTimeout(() => {
-                updateUI(); document.querySelector('.menu-title').innerText = "ИГРА ОКОНЧЕНА";
-                if (isReviveAvailable) reviveBtn.style.display = 'block';
-                menu.style.display = 'flex';
+            // Очищаем старый таймер (если он был)
+            if (dieTimeout) clearTimeout(dieTimeout);
+
+            dieTimeout = setTimeout(() => {
+                // Показываем меню, ТОЛЬКО если игрок все еще мертв (не нажал возрождение)
+                if (gameOver) {
+                    updateUI(); document.querySelector('.menu-title').innerText = "ИГРА ОКОНЧЕНА";
+                    if (isReviveAvailable) reviveBtn.style.display = 'block';
+                    menu.style.display = 'flex';
+                }
             }, 1000);
         }
 
@@ -530,7 +534,7 @@
             reviveBtn.style.display = 'none';
             if (mode === 'easy') { crystalsHud.style.display = 'none'; } else { crystalsHud.style.display = 'flex'; }
             score = 0; sessionCrystals = 0; document.getElementById('game-crystals').innerText = sessionCrystals;
-            gameOver = false; isReviveAvailable = true; arrowX = (gameWidth / 2) - 37.5;
+            gameOver = false; isReviveAvailable = true; isInvincible = false; arrowX = (gameWidth / 2) - 37.5;
             velocityX = 0; isMouseDown = false; worldOffsetY = 0;
             arrowSpeed = modes[mode].startSpeed; gapWidth = modes[mode].startGap;
             scoreEl.style.display = 'block'; scoreEl.innerText = "0 м";
@@ -560,7 +564,6 @@
             applySkin(); updateUI();
         }
 
-        // ОБНОВЛЕНА: Убрали страшный alert при закрытии рекламы
         function showRewardedAd() {
             if (!vkBridge) { 
                 alert("Реклама работает только внутри ВКонтакте. (Локально возрождаем для теста)"); 
@@ -576,14 +579,25 @@
                 })
                 .catch((error) => { 
                     console.log("Ошибка показа рекламы", error); 
-                    // Никаких alert, чтобы не бесить игрока
                 });
         }
 
         function revivePlayer() {
-            isReviveAvailable = false; reviveBtn.style.display = 'none'; menu.style.display = 'none'; gameOver = false;
-            boom.style.display = 'none'; arrow.style.display = 'block';
-            arrow.style.left = arrowX + 'px'; arrow.style.top = arrowScreenY + 'px';
+            if (dieTimeout) clearTimeout(dieTimeout); // Отменяем таймер появления меню
+            
+            isReviveAvailable = false; 
+            reviveBtn.style.display = 'none'; 
+            menu.style.display = 'none'; 
+            gameOver = false;
+            boom.style.display = 'none'; 
+            arrow.style.display = 'block';
+            arrow.style.left = arrowX + 'px'; 
+            arrow.style.top = arrowScreenY + 'px';
+            
+            // Включаем неуязвимость на 1.5 секунды
+            isInvincible = true;
+            setTimeout(() => { isInvincible = false; }, 1500);
+
             lastTime = performance.now(); 
             update(lastTime);
         }
